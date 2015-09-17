@@ -4,50 +4,45 @@ import os
 from pymongo import MongoClient
 import socket
 
-def getCollectionNames():
+def getCollectionNames(dbName):
     client = MongoClient()
     collectionNames = client[dbName].collection_names()
     return collectionNames
 
-def exportMongoCollections():
+def getCompleteDatabaseBackup(dbName, backupTime):
     databaseName = dbName
-    newListOfOutputFileNames = []
-    for collectionName in getCollectionNames():
-        outputFileName = collectionName + ".json"
-        newListOfOutputFileNames.append(outputFileName)
-        commandToExportMongoCollection = "mongoexport --db "+databaseName+ " --collection "+collectionName+ " --out "+outputFileName
-        print "Exporting Mongodb Collection " + collectionName + " from Database "+databaseName
-        os.system(commandToExportMongoCollection)
-    return newListOfOutputFileNames
+    outputDirectory = "/opt/mongodump-"+backupTime
+    commandToTakeCompleteDatabaseBackup = "mongodump --db "+databaseName+" --out "+outputDirectory
+    os.system(commandToTakeCompleteDatabaseBackup)
+    return outputDirectory
 
-def getNodeBackupS3Path():
+def getNodeBackupS3Path(bucketName):
     nodeName = (socket.gethostname())
     nodeS3Path = "s3://"+bucketName+"/"+nodeName
     return nodeS3Path
 
-def uploadMongoCollectionsToS3():
-    outputFileNames = exportMongoCollections()
-    s3SyncDir = getNodeBackupS3Path()
-    for collectionName in outputFileNames:
-        backupTime = datetime.datetime.strftime(datetime.datetime.now(), '%Y%m%d%H%M%S')
-        s3SyncCommand = "aws s3 cp "+ collectionName + " " + s3SyncDir + "/mongoBackup/" + backupTime+"/" +dbName+"/"+ collectionName
-        print "Uploading Mongodb Collection : <Local-2-S3>"
-        print s3SyncCommand
-        os.system(s3SyncCommand)
+def uploadMongoCollectionsToS3(dbName, bucketName, backupTime):
+    getCompleteDatabaseBackupDirectory = getCompleteDatabaseBackup(dbName, backupTime)
+    s3SyncDir = getNodeBackupS3Path(bucketName)
+    s3SyncCommand = "aws s3 sync "+getCompleteDatabaseBackupDirectory+ " "+s3SyncDir+ "/mongoBackup/" + backupTime+"/"
+    print "Uploading Mongodb Complete Backup : <Local-2-S3>"
+    print s3SyncCommand
+    os.system(s3SyncCommand)
 
-def validateDatabase():
+def validateDatabase(dbName):
     client = MongoClient()
     databases = client.database_names()
     if any(dbName in s for s in databases):
-        uploadMongoCollectionsToS3()
+        print "*******************"
     else:
         print "Please Provide a Valid Database Name"
 
 def main():
-    validateDatabase()
-
-dbName = sys.argv[1]
-bucketName = sys.argv[2]
+    dbName = sys.argv[1]
+    bucketName = sys.argv[2]
+    backupTime = datetime.datetime.strftime(datetime.datetime.now(), '%Y%m%d%H%M%S')
+    validateDatabase(dbName)
+    uploadMongoCollectionsToS3(dbName, bucketName, backupTime)
 
 main()
 
