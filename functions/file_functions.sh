@@ -63,6 +63,7 @@ function deleteLineFromFile() {
 	local LINE_NO="$1"
 	local FILE_NAME="$2"
 
+	echo "Deleting line ${LINE_NO} from file ${FILE_NAME}"
 	sed -i ''$LINE_NO'd' "$FILE_NAME"
 }
 
