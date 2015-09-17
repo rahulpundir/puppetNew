@@ -19,5 +19,5 @@ python mongoRestoreScript.py test 20150916135055 cassandra-backup-dir restoreDat
 
 ```
 
-[mongoBackup.py]:https://github.com/OpsTree/Scripts/mongo/mongoBackup.py
-[mongoRestoreScript.py]:https://github.com/OpsTree/Scripts/mongo/mongoRestoreScript.py
+[mongoBackup.py]:https://github.com/OpsTree/Scripts/blob/master/mongo/mongoBackup.py
+[mongoRestoreScript.py]:https://github.com/OpsTree/Scripts/blob/master/mongo/mongoRestoreScript.py
