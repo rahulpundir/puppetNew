@@ -67,6 +67,17 @@ function deleteLineFromFile() {
 	sed -i ''$LINE_NO'd' "$FILE_NAME"
 }
 
+function deleteLinesFromFile() {
+	local LINE_NO="$1"
+	local LINES_COUNT="$2"
+	local FILE_NAME="$3"
+
+	echo "Deleting next ${LINES_COUNT} lines from ${FILE_NAME} starting from line number ${LINE_NO}"
+	for i in `seq 1 $LINES_COUNT`; 
+	do 
+		deleteLineFromFile ${LINE_NO} ${FILE_NAME}
+	done
+}
 function numberOfLinesInFile() {
 	local FILE_NAME="$1"
 	echo `wc -l "$FILE_NAME" | awk '{print $1}'`
