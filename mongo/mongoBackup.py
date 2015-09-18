@@ -5,6 +5,7 @@ from pymongo import MongoClient
 import socket
 import logging, logging.handlers
 
+logger = null
 
 def getCompleteDatabaseBackup(dbName, backupTime):
     databaseName = dbName
@@ -66,8 +67,22 @@ def validateDatabaseCollectionName(dbName, collectionName):
         logfun.exception("Please Provide a Valid Collection Name")
         return False        
 
+def instantiateLogger():
+    
+    global logger = logging.getLogger("logfun")
+    logger.setLevel(logging.DEBUG)
+
+    # This handler writes everything to a file.
+    fileHandler = logging.FileHandler("/var/log/mongoBackup.log")
+    formatter = logging.Formatter("%(levelname)s %(asctime)s %(funcName)s %(lineno)d %(message)s")
+    fileHandler.setFormatter(formatter)
+    fileHandler.setLevel(logging.DEBUG)
+    logger.addHandler(fileHandler)
+    
+
 
 def main():
+    instantiateLogger()
     dbName = sys.argv[1]
     bucketName = sys.argv[2]
     backupTime = datetime.datetime.strftime(datetime.datetime.now(), '%Y%m%d%H%M%S')
