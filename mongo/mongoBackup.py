@@ -44,30 +44,30 @@ def uploadMongoCollectionWiseBackup(bucketName,dbName, backupTime):
     print s3SyncCommand
     os.system(s3SyncCommand)
 
-def validateDatabaseAndUpload(dbName, bucketName, backupTime, optionToChooseCompleteOrCollectionWiseBackup):
+def validateDatabase(dbName):
     client = MongoClient()
     databases = client.database_names()
     if dbName in databases:
-        if optionToChooseCompleteOrCollectionWiseBackup == 'db':
-            uploadMongoCompleteBackupToS3(dbName, bucketName, backupTime)
-        else:
-            if optionToChooseCompleteOrCollectionWiseBackup == 'collection':
-                uploadMongoCollectionWiseBackupToS3(dbName, sys.argv[4], bucketName, backupTime)
-            else:
-                print "Please Provide a Valid Option to Perform: i.e db|collection"
+        return True
     else:
         print "Please Provide a Valid Database Name"
-
-
+        return False
 
 def main():
     dbName = sys.argv[1]
     bucketName = sys.argv[2]
     backupTime = datetime.datetime.strftime(datetime.datetime.now(), '%Y%m%d%H%M%S')
     optionToChooseCompleteOrCollectionWiseBackup = sys.argv[3]
-        
-    validateDatabaseAndUpload(dbName, bucketName, backupTime, optionToChooseCompleteOrCollectionWiseBackup)
-            
+    if optionToChooseCompleteOrCollectionWiseBackup == 'db':
+        if validateDatabase(dbName): 
+            uploadMongoCompleteBackupToS3(dbName, bucketName, backupTime)
+    else:
+        if optionToChooseCompleteOrCollectionWiseBackup == 'collection':
+            if validateDatabase(dbName):
+                uploadMongoCollectionWiseBackupToS3(dbName, sys.argv[4], bucketName, backupTime)
+        else:
+            print "Please Provide a Valid Option to Perform: i.e db|collection"
+               
 main()
 
 
