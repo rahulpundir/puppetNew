@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import sys
 import socket
 import os
@@ -6,32 +7,29 @@ from os.path import isfile, join
 from pymongo import MongoClient
 
 
-def getNodeBackupS3Path():
-    nodeName = (socket.gethostname())
-    nodeS3Path = "s3://"+bucketName+"/"+nodeName
-    return nodeS3Path
+def getS3Path(bucketName, filePath):
+    s3Path = "s3://"+bucketName+"/" + filePath
+    return s3Path
 
 
-def downloadMongoCollectionsFromS3():
-    databaseName = dbName
-    restorePointOfMongo = restorePoint
-    nodeS3Path = getNodeBackupS3Path()
-    commandToDownloadS3Directory = "aws s3 sync " + nodeS3Path + "/mongoBackup/" + restorePointOfMongo+"/" + databaseName+" " + databaseName
-    print "Downloading Mongodb Collection : <S3-2-Local>"
-    os.system(commandToDownloadS3Directory)
+def downloadDumpFileFromS3(bucketName, dumpFile):
+    dumpFile = dumpFile + ".tar.gz"
+    dumpS3Path = getS3Path(bucketName, dumpFile)
+    downloadMongoDumpCommand = "aws s3 cp " +  dumpS3Path + " /tmp/" + dumpFile
+    os.system(downloadMongoDumpCommand)
+#    print downloadMongoDumpCommand
 
-def getCollectionList():
-    restorePointDirectoryContainingCollections = dbName
-    collectionsInRestorePointDirectory = [ collection for collection in listdir(restorePointDirectoryContainingCollections) if isfile(join(restorePointDirectoryContainingCollections,collection)) ]
-#    collectionsInRestorePointDirectory = os.popen(restorePointDirectoryContainingCollections).readlines()
-    return collectionsInRestorePointDirectory
+def extractDumpFile(dumpFile):
+    compressedDumpFile = "/tmp/" + dumpFile + ".tar.gz"
 
-def importCollectionsIntoMongoDB():
-    databaseName = dbName
-    for collection in getCollectionList():
-        collectionNameWithOutJson = collection.split('.')[0]
-        commandToImportCollectionIntoMongo = "mongoimport --db "+databaseName+ " --collection "+collectionNameWithOutJson+ " < "+databaseName+"/"+collection
-        os.system(commandToImportCollectionIntoMongo)
+    extractCommand = "rm -rf /tmp/mongorestore;mkdir /tmp/mongorestore; tar -xvzf " + compressedDumpFile + " -C /tmp/mongorestore; rm -f " + compressedDumpFile
+    os.system(extractCommand)
+#    print extractCommand
+
+def restoreDumpInMongoDB(dumpFIle):
+    dumpRestoreCommand = "mongorestore /tmp/mongorestore/" + dumpFile
+    os.system(dumpRestoreCommand)
+#    print dumpRestoreCommand
 
 def cleanDatabaseBeforeImportCollections():
     mongodatabaseInstanceConnection = MongoClient()
@@ -51,20 +49,17 @@ def validateDatabase():
 def main():
     if optionToCleanUPCollectionBeforeRestore == 'restoreDatabaseWithCleanUP':
         validateDatabase()
-        cleanDatabaseBeforeImportCollections()
-        downloadMongoCollectionsFromS3()
-        importCollectionsIntoMongoDB()
+#        cleanDatabaseBeforeImportCollections()
+        downloadDumpFileFromS3(bucketName, dumpFile)
+	extractDumpFile(dumpFile)
+        restoreDumpInMongoDB(dumpFile)
     else:
-        if optionToCleanUPCollectionBeforeRestore == 'restoreDatabaseWithOutCleanUP':
-            validateDatabase()
-            downloadMongoCollectionsFromS3()
-            importCollectionsIntoMongoDB()
-        else:
-            print "Please Select Database Clean-up before Restore Operation"
+        print "Please Select Database Clean-up before Restore Operation"
         
 dbName = sys.argv[1]
 restorePoint = sys.argv[2]
 bucketName = sys.argv[3] 
 optionToCleanUPCollectionBeforeRestore = sys.argv[4]
+dumpFile = sys.argv[5]
 
 main()
