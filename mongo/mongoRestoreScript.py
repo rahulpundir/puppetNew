@@ -13,7 +13,7 @@ def getS3Path(bucketName, filePath):
 
 
 def downloadDumpFileFromS3(bucketName, dumpFile):
-    dumpFile = dumpFile + ".gz"
+    dumpFile = dumpFile + ".tar.gz"
     dumpS3Path = getS3Path(bucketName, dumpFile)
     downloadMongoDumpCommand = "aws s3 cp " +  dumpS3Path + " /tmp/" + dumpFile
     os.system(downloadMongoDumpCommand)
@@ -49,11 +49,11 @@ def validateDatabase():
 def main():
     if optionToCleanUPCollectionBeforeRestore == 'restoreDatabaseWithCleanUP':
         validateDatabase()
-        cleanDatabaseBeforeImportCollections()
+#        cleanDatabaseBeforeImportCollections()
         downloadDumpFileFromS3(bucketName, dumpFile)
 	extractDumpFile(dumpFile)
         restoreDumpInMongoDB(dumpFile)
-   else:
+    else:
         print "Please Select Database Clean-up before Restore Operation"
         
 dbName = sys.argv[1]
