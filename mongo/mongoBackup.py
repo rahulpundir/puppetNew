@@ -12,7 +12,7 @@ def createCompleteDatabaseBackup(database, backupTime):
     os.system(databaseBackupCommand)
     return databaseBackupLocation
   
-def getCollectionWiseBackup(database, collectionName):
+def createCollectionBackup(database, collectionName):
     databaseName = database
     commandToGetCollectionWiseBackup = "mongodump  --db "+databaseName+" --collection "+collectionName
     logging.debug("Creating Mongodb Collection Backup ")
@@ -20,32 +20,23 @@ def getCollectionWiseBackup(database, collectionName):
     outputDirectory = "dump"
     return outputDirectory
 
-def compressCreatedCompleteDatabaseBackup(database, backupTime, compressDirectoryLocation):
+def compressDatabaseBackup(database, backupTime, compressDirectoryLocation):
     compressedFileName = database+"-"+backupTime+".tar.gz"
     tar = tarfile.open(compressedFileName, "w:gz")
     sourceDirecotry = compressDirectoryLocation+"/"+database+"/"
-    print sourceDirecotry
     tar.add(sourceDirecotry, arcname=database)
     tar.close()
     return compressedFileName
     
-def getNodeBackupS3Path(bucketName, nodeName):
-    nodeS3Path = "s3://"+bucketName+"/"+nodeName
+def getNodeBackupS3Path(s3bucketName, nodeName):
+    nodeS3Path = "s3://"+s3bucketName+"/"+nodeName
     return nodeS3Path
 
-def uploadMongoCompleteBackupToS3(database, bucketName, backupTime, nodeName):
-    getCompleteDatabaseBackupDirectory = compressCreatedCompleteDatabaseBackup(database, backupTime, createCompleteDatabaseBackup(database, backupTime))
-    s3SyncDir = getNodeBackupS3Path(bucketName, nodeName)
-    s3SyncCommand = "aws s3 cp "+getCompleteDatabaseBackupDirectory+ " "+s3SyncDir+"/"+getCompleteDatabaseBackupDirectory
-    logging.debug("Uploading Mongodb Complete Backup : <Local-2-S3>")
+def uploadMongoBackupToS3(s3bucketName, nodeName, compressedFile):
+    s3SyncDir = getNodeBackupS3Path(s3bucketName, nodeName)
+    s3SyncCommand = "aws s3 cp "+compressedFile+ " "+s3SyncDir+"/"+compressedFile
+    logging.debug("Uploading Mongodb Backup : <Local-2-S3>")
     logging.debug(s3SyncCommand)
-    os.system(s3SyncCommand)
-
-def uploadMongoCollectionWiseBackupToS3(database, collectionName, bucketName, backupTime, nodeName):
-    getCollectionWiseBackupDirectory = compressCreatedCompleteDatabaseBackup(database, backupTime, getCollectionWiseBackup(database, collectionName))
-    s3SyncDir = getNodeBackupS3Path(bucketName, nodeName)
-    s3SyncCommand = "aws s3 cp "+getCollectionWiseBackupDirectory+ " "+s3SyncDir+ "/"+getCollectionWiseBackupDirectory
-    logging.debug("Uploading Mongodb Collection Backup To S3 Bucket")
     os.system(s3SyncCommand)
 
 def validateDatabase(database):
@@ -80,12 +71,16 @@ def main():
     
     if validateDatabase(database): 
         if chooseCompleteOrCollectionWiseBackupOption == 'database':
-            uploadMongoCompleteBackupToS3(database, s3bucketName, backupTime, nodeName)
+            fileLocationForCompression = createCompleteDatabaseBackup(database, backupTime)
+            compressedFile = compressDatabaseBackup(database, backupTime, fileLocationForCompression)
+            uploadMongoBackupToS3(s3bucketName, nodeName, compressedFile)
         else:
             if chooseCompleteOrCollectionWiseBackupOption == 'collection':
                 collectionName = sys.argv[5]
                 if validateDatabaseCollectionName(database, collectionName):
-                    uploadMongoCollectionWiseBackupToS3(database, collectionName, s3bucketName, backupTime, nodeName)
+                    fileLocationForCompression = createCollectionBackup(database, collectionName)
+                    compressedFile = compressDatabaseBackup(database, backupTime, fileLocationForCompression)
+                    uploadMongoBackupToS3(s3bucketName, nodeName, compressedFile)
             else:
                 logging.exception("Provided Option to Perform is not Valid, please provide : i.e database|collection")
                 print "Please Provide a Valid Option to Perform: i.e database|collection"
