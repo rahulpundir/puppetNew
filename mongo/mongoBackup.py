@@ -4,6 +4,7 @@ import os
 from pymongo import MongoClient
 import socket
 
+
 def getCompleteDatabaseBackup(dbName, backupTime):
     databaseName = dbName
     outputDirectory = "/opt/mongodump-"+backupTime
@@ -51,6 +52,11 @@ def main():
     bucketName = sys.argv[2]
     backupTime = datetime.datetime.strftime(datetime.datetime.now(), '%Y%m%d%H%M%S')
     optionToChooseCompleteOrCollectionWiseBackup = sys.argv[3]
+    
+    old_stdout = sys.stdout
+    log_file = open("/var/log/mongoBackup.log","w")
+    sys.stdout = log_file    
+    
     if optionToChooseCompleteOrCollectionWiseBackup == 'db':
         if validateDatabase(dbName): 
             uploadMongoCompleteBackupToS3(dbName, bucketName, backupTime)
@@ -60,6 +66,9 @@ def main():
                 uploadMongoCollectionWiseBackupToS3(dbName, sys.argv[4], bucketName, backupTime)
         else:
             print "Please Provide a Valid Option to Perform: i.e db|collection"
+    
+    sys.stdout = old_stdout
+    log_file.close()
                
 main()
 
