@@ -2,116 +2,94 @@ import sys
 import datetime
 import os
 from pymongo import MongoClient
-import socket
-import logging, logging.handlers
+import logging
+import tarfile
 
-logger = null
-
-def getCompleteDatabaseBackup(dbName, backupTime):
-    databaseName = dbName
-    outputDirectory = "/opt/mongodump-"+backupTime
-    commandToTakeCompleteDatabaseBackup = "mongodump --db "+databaseName+" --out "+outputDirectory
-    logfun = logging.getLogger("logfun")
-    logfun.debug("Creating Mongodb Complete Backup ")
-    os.system(commandToTakeCompleteDatabaseBackup)
-    return outputDirectory
-
-def getCollectionWiseBackup(dbName, collectionName):
-    databaseName = dbName
+def createCompleteDatabaseBackup(database, backupTime):
+    databaseBackupLocation = "/opt/mongodump-"+backupTime
+    databaseBackupCommand = "mongodump --db "+database+" --out "+databaseBackupLocation
+    logging.debug("Creating Mongodb Complete Backup on "+ databaseBackupLocation)
+    os.system(databaseBackupCommand)
+    return databaseBackupLocation
+  
+def getCollectionWiseBackup(database, collectionName):
+    databaseName = database
     commandToGetCollectionWiseBackup = "mongodump  --db "+databaseName+" --collection "+collectionName
-    logfun = logging.getLogger("logfun")
-    logfun.debug("Creating Mongodb Collection Backup ")
+    logging.debug("Creating Mongodb Collection Backup ")
     os.system(commandToGetCollectionWiseBackup)
-    outputDirectory = "dump/"
+    outputDirectory = "dump"
     return outputDirectory
+
+def compressCreatedCompleteDatabaseBackup(database, backupTime, compressDirectoryLocation):
+    compressedFileName = database+"-"+backupTime+".tar.gz"
+    tar = tarfile.open(compressedFileName, "w:gz")
+    sourceDirecotry = compressDirectoryLocation+"/"+database+"/"
+    print sourceDirecotry
+    tar.add(sourceDirecotry, arcname=database)
+    tar.close()
+    return compressedFileName
     
-def getNodeBackupS3Path(bucketName):
-    nodeName = (socket.gethostname())
+def getNodeBackupS3Path(bucketName, nodeName):
     nodeS3Path = "s3://"+bucketName+"/"+nodeName
     return nodeS3Path
 
-def uploadMongoCompleteBackupToS3(dbName, bucketName, backupTime):
-    getCompleteDatabaseBackupDirectory = getCompleteDatabaseBackup(dbName, backupTime)
-    s3SyncDir = getNodeBackupS3Path(bucketName)
-    s3SyncCommand = "aws s3 sync "+getCompleteDatabaseBackupDirectory+ " "+s3SyncDir+ "/mongoBackup/" + backupTime+"/"
-    logfun = logging.getLogger("logfun")
-    logfun.debug("Uploading Mongodb Complete Backup : <Local-2-S3>")
-    logfun.debug(s3SyncCommand)
+def uploadMongoCompleteBackupToS3(database, bucketName, backupTime, nodeName):
+    getCompleteDatabaseBackupDirectory = compressCreatedCompleteDatabaseBackup(database, backupTime, createCompleteDatabaseBackup(database, backupTime))
+    s3SyncDir = getNodeBackupS3Path(bucketName, nodeName)
+    s3SyncCommand = "aws s3 cp "+getCompleteDatabaseBackupDirectory+ " "+s3SyncDir+"/"+getCompleteDatabaseBackupDirectory
+    logging.debug("Uploading Mongodb Complete Backup : <Local-2-S3>")
+    logging.debug(s3SyncCommand)
     os.system(s3SyncCommand)
 
-def uploadMongoCollectionWiseBackupToS3(dbName, collectionName, bucketName, backupTime):
-    getCollectionWiseBackupDirectory = getCollectionWiseBackup(dbName, collectionName)
-    s3SyncDir = getNodeBackupS3Path(bucketName)
-    s3SyncCommand = "aws s3 sync "+getCollectionWiseBackupDirectory+ " "+s3SyncDir+ "/mongoBackup/" + backupTime+"/"
-    logfun = logging.getLogger("logfun")
-    logfun.debug("Uploading Mongodb Collection Backup To S3 Bucket")
+def uploadMongoCollectionWiseBackupToS3(database, collectionName, bucketName, backupTime, nodeName):
+    getCollectionWiseBackupDirectory = compressCreatedCompleteDatabaseBackup(database, backupTime, getCollectionWiseBackup(database, collectionName))
+    s3SyncDir = getNodeBackupS3Path(bucketName, nodeName)
+    s3SyncCommand = "aws s3 cp "+getCollectionWiseBackupDirectory+ " "+s3SyncDir+ "/"+getCollectionWiseBackupDirectory
+    logging.debug("Uploading Mongodb Collection Backup To S3 Bucket")
     os.system(s3SyncCommand)
 
-def validateDatabase(dbName):
+def validateDatabase(database):
     client = MongoClient()
     databases = client.database_names()
-    if dbName in databases:
+    if database in databases:
         return True
     else:
-        logfun = logging.getLogger("logfun")
-        logfun.exception("Please Provide a Valid Database Name")
+        logging.exception("Provided Database "+ database+ " Not exists...")
+        print "Please Provide a Valid Database Name"
         return False
 
-def validateDatabaseCollectionName(dbName, collectionName):
+def validateDatabaseCollectionName(database, collectionName):
     client = MongoClient()
-    collectionNames = client[dbName].collection_names()
+    collectionNames = client[database].collection_names()
     if collectionName in collectionNames:
         return True
     else:
-        logfun = logging.getLogger("logfun")
-        logfun.exception("Please Provide a Valid Collection Name")
+        logging.exception("Provided Collection "+ collectionName +" not exists in Database "+database )
+        print "Please Provide a Valid Collection Name"
         return False        
-
-def instantiateLogger():
-    
-    global logger = logging.getLogger("logfun")
-    logger.setLevel(logging.DEBUG)
-
-    # This handler writes everything to a file.
-    fileHandler = logging.FileHandler("/var/log/mongoBackup.log")
-    formatter = logging.Formatter("%(levelname)s %(asctime)s %(funcName)s %(lineno)d %(message)s")
-    fileHandler.setFormatter(formatter)
-    fileHandler.setLevel(logging.DEBUG)
-    logger.addHandler(fileHandler)
-    
 
 
 def main():
-    instantiateLogger()
-    dbName = sys.argv[1]
-    bucketName = sys.argv[2]
+    database = sys.argv[1]
+    s3bucketName = sys.argv[2]
+    nodeName = sys.argv[3]
     backupTime = datetime.datetime.strftime(datetime.datetime.now(), '%Y%m%d%H%M%S')
-    optionToChooseCompleteOrCollectionWiseBackup = sys.argv[3]
+    chooseCompleteOrCollectionWiseBackupOption = sys.argv[4]
     
-    if optionToChooseCompleteOrCollectionWiseBackup == 'db':
-        if validateDatabase(dbName): 
-            uploadMongoCompleteBackupToS3(dbName, bucketName, backupTime)
-    else:
-        if optionToChooseCompleteOrCollectionWiseBackup == 'collection':
-            if validateDatabase(dbName):
-                collectionName = sys.argv[4]
-                if validateDatabaseCollectionName(dbName, collectionName):
-                    uploadMongoCollectionWiseBackupToS3(dbName, collectionName, bucketName, backupTime)
+    logging.basicConfig(filename='/var/log/mongoBackup.log',level=logging.DEBUG)
+    
+    if validateDatabase(database): 
+        if chooseCompleteOrCollectionWiseBackupOption == 'database':
+            uploadMongoCompleteBackupToS3(database, s3bucketName, backupTime, nodeName)
         else:
-            logfun = logging.getLogger("logfun")
-            logfun.exception("Please Provide a Valid Option to Perform: i.e db|collection")
-            
-# Make a global logging object.
-x = logging.getLogger("logfun")
-x.setLevel(logging.DEBUG)
-    
-# This handler writes everything to a file.
-h1 = logging.FileHandler("/var/log/mongoBackup.log")
-f = logging.Formatter("%(levelname)s %(asctime)s %(funcName)s %(lineno)d %(message)s")
-h1.setFormatter(f)
-h1.setLevel(logging.DEBUG)
-x.addHandler(h1)    
-               
+            if chooseCompleteOrCollectionWiseBackupOption == 'collection':
+                collectionName = sys.argv[5]
+                if validateDatabaseCollectionName(database, collectionName):
+                    uploadMongoCollectionWiseBackupToS3(database, collectionName, s3bucketName, backupTime, nodeName)
+            else:
+                logging.exception("Provided Option to Perform is not Valid, please provide : i.e database|collection")
+                print "Please Provide a Valid Option to Perform: i.e database|collection"
+                           
 main()
 
 
