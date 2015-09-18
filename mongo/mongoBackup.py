@@ -37,13 +37,6 @@ def uploadMongoCollectionWiseBackupToS3(dbName, collectionName, bucketName, back
     s3SyncCommand = "aws s3 sync "+getCollectionWiseBackupDirectory+ " "+s3SyncDir+ "/mongoBackup/" + backupTime+"/"
     os.system(s3SyncCommand)
 
-def uploadMongoCollectionWiseBackup(bucketName,dbName, backupTime):
-    s3SyncDir = getNodeBackupS3Path(bucketName)
-    s3SyncCommand = "aws s3 sync dump/"+dbName+ "/ "+s3SyncDir+ "/mongoBackup/" + backupTime+"/"
-    print "Uploading Mongodb Collection Wise Backup : <Local-2-S3>"
-    print s3SyncCommand
-    os.system(s3SyncCommand)
-
 def validateDatabase(dbName):
     client = MongoClient()
     databases = client.database_names()
