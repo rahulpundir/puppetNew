@@ -12,13 +12,13 @@ def createCompleteDatabaseBackup(database, backupTime):
     os.system(databaseBackupCommand)
     return databaseBackupLocation
   
-def createCollectionBackup(database, collectionName):
+def createCollectionBackup(database, collectionName, backupTime):
     databaseName = database
-    commandToGetCollectionWiseBackup = "mongodump  --db "+databaseName+" --collection "+collectionName
+    databaseBackupLocation = "/opt/mongodump-"+backupTime
+    commandToGetCollectionWiseBackup = "mongodump  --db "+databaseName+" --collection "+collectionName+" --out "+databaseBackupLocation
     logging.debug("Creating Mongodb Collection Backup ")
     os.system(commandToGetCollectionWiseBackup)
-    outputDirectory = "dump"
-    return outputDirectory
+    return databaseBackupLocation
 
 def compressDatabaseBackup(database, backupTime, compressDirectoryLocation):
     compressedFileName = database+"-"+backupTime+".tar.gz"
@@ -78,7 +78,7 @@ def main():
             if chooseCompleteOrCollectionWiseBackupOption == 'collection':
                 collectionName = sys.argv[5]
                 if validateDatabaseCollectionName(database, collectionName):
-                    fileLocationForCompression = createCollectionBackup(database, collectionName)
+                    fileLocationForCompression = createCollectionBackup(database, collectionName, backupTime)
                     compressedFile = compressDatabaseBackup(database, backupTime, fileLocationForCompression)
                     uploadMongoBackupToS3(s3bucketName, nodeName, compressedFile)
             else:
