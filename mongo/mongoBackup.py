@@ -32,9 +32,9 @@ def getNodeBackupS3Path(s3bucketName, nodeName):
     nodeS3Path = "s3://"+s3bucketName+"/"+nodeName
     return nodeS3Path
 
-def uploadMongoBackupToS3(s3bucketName, nodeName, compressedFile):
+def uploadMongoBackupToS3(s3bucketName, nodeName, compressedFile, backupType):
     s3SyncDir = getNodeBackupS3Path(s3bucketName, nodeName)
-    s3SyncCommand = "aws s3 cp "+compressedFile+ " "+s3SyncDir+"/"+compressedFile
+    s3SyncCommand = "aws s3 cp "+compressedFile+ " "+s3SyncDir+"/"+backupType+"/" +compressedFile
     logging.debug("Uploading Mongodb Backup : <Local-2-S3>")
     logging.debug(s3SyncCommand)
     os.system(s3SyncCommand)
@@ -65,22 +65,22 @@ def main():
     s3bucketName = sys.argv[2]
     nodeName = sys.argv[3]
     backupTime = datetime.datetime.strftime(datetime.datetime.now(), '%Y%m%d%H%M%S')
-    chooseCompleteOrCollectionWiseBackupOption = sys.argv[4]
+    backupType = sys.argv[4]
     
     logging.basicConfig(filename='/var/log/mongoBackup.log',level=logging.DEBUG)
     
     if validateDatabase(database): 
-        if chooseCompleteOrCollectionWiseBackupOption == 'database':
+        if backupType == 'database':
             fileLocationForCompression = createCompleteDatabaseBackup(database, backupTime)
             compressedFile = compressDatabaseBackup(database, backupTime, fileLocationForCompression)
-            uploadMongoBackupToS3(s3bucketName, nodeName, compressedFile)
+            uploadMongoBackupToS3(s3bucketName, nodeName, compressedFile, backupType)
         else:
-            if chooseCompleteOrCollectionWiseBackupOption == 'collection':
+            if backupType == 'collection':
                 collectionName = sys.argv[5]
                 if validateDatabaseCollectionName(database, collectionName):
                     fileLocationForCompression = createCollectionBackup(database, collectionName, backupTime)
                     compressedFile = compressDatabaseBackup(database, backupTime, fileLocationForCompression)
-                    uploadMongoBackupToS3(s3bucketName, nodeName, compressedFile)
+                    uploadMongoBackupToS3(s3bucketName, nodeName, compressedFile, backupType)
             else:
                 logging.exception("Provided Option to Perform is not Valid, please provide : i.e database|collection")
                 print "Please Provide a Valid Option to Perform: i.e database|collection"
