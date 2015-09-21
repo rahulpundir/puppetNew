@@ -5,14 +5,14 @@ from pymongo import MongoClient
 import tarfile
 import logging
 
-def getS3Path(s3Directory):
-    s3Path = "s3://"+s3Directory
+def getS3Path(bucketName, nodeName):
+    s3Path = "s3://"+bucketName+"/"+nodeName
     return s3Path
 
 
-def downloadDumpFileFromS3(s3Directory, restoreFileName):
-    S3Path = getS3Path(s3Directory)
-    S3FileLocation = S3Path+ "/"+restoreFileName
+def downloadDumpFileFromS3(bucketName, nodeName, restoreFileName, restoreType):
+    S3Path = getS3Path(bucketName, nodeName)
+    S3FileLocation = S3Path+ "/"+restoreType+"/"+restoreFileName
     downloadS3File = "aws s3 cp " +S3FileLocation+ " /tmp/"
     logging.debug("Downloading Mongo Backup From "+ S3FileLocation) 
     os.system(downloadS3File)
@@ -61,29 +61,29 @@ def validateDatabaseCollectionName(database, collection):
         print "Please Provide a Valid Collection Name"
         return False
 
-def restoreMongoDatabase(databaseCleanupOption, s3Directory, restoreFileName, database):
+def restoreMongoDatabase(databaseCleanupOption, bucketName, nodeName, restoreFileName, database, restoreType):
     if databaseCleanupOption == 'withcleanup':
-        downloadDumpFileFromS3(s3Directory, restoreFileName)
+        downloadDumpFileFromS3(bucketName, nodeName, restoreFileName, restoreType)
         extractDumpFile(database, restoreFileName)
         dropDatabase(database)
         restoreDumpInMongoDB(database)
     else:
         if databaseCleanupOption == 'withoutcleanup':
-            downloadDumpFileFromS3(s3Directory, restoreFileName)
+            downloadDumpFileFromS3(bucketName, nodeName, restoreFileName, restoreType)
             extractDumpFile(database, restoreFileName)
             restoreDumpInMongoDB(database)
         else:
             print "Please Select Database Clean-up option before Restore Operation i.e withcleanup|withoutcleanup"     
     
-def restoreMongoCollection(collection, databaseCleanupOption, s3Directory, restoreFileName, database):
+def restoreMongoCollection(collection, databaseCleanupOption, bucketName, nodeName, restoreFileName, database, restoreType):
     if databaseCleanupOption == 'withcleanup':
-        downloadDumpFileFromS3(s3Directory, restoreFileName)
+        downloadDumpFileFromS3(bucketName, nodeName, restoreFileName, restoreType)
         extractDumpFile(database, restoreFileName)
         dropCollection(database, collection)
         restoreDumpInMongoDB(database)
     else:
         if databaseCleanupOption == 'withoutcleanup':
-            downloadDumpFileFromS3(s3Directory, restoreFileName)
+            downloadDumpFileFromS3(bucketName, nodeName, restoreFileName, restoreType)
             extractDumpFile(database, restoreFileName)
             restoreDumpInMongoDB(database)
         else:
@@ -93,26 +93,22 @@ def restoreMongoCollection(collection, databaseCleanupOption, s3Directory, resto
 def main():
     database = sys.argv[1]
     restoreFileName = sys.argv[2]
-    s3Directory = sys.argv[3]
-    restoreType = sys.argv[4]
-    databaseCleanupOption = sys.argv[5]
+    bucketName = sys.argv[3]
+    nodeName = sys.argv[4]
+    restoreType = sys.argv[5]
+    databaseCleanupOption = sys.argv[6]
     
     logging.basicConfig(filename='/var/log/mongoRestore.log',level=logging.DEBUG)
     
     if validateDatabase(database):
         if restoreType == 'database':
-            restoreMongoDatabase(databaseCleanupOption, s3Directory, restoreFileName, database)
+            restoreMongoDatabase(databaseCleanupOption, bucketName, nodeName, restoreFileName, database, restoreType)
         else:
             if restoreType == 'collection':
-                collection = sys.argv[6]
+                collection = sys.argv[7]
                 if validateDatabaseCollectionName(database, collection):
-                    restoreMongoCollection(collection, databaseCleanupOption, s3Directory, restoreFileName, database) 
+                    restoreMongoCollection(collection, databaseCleanupOption, bucketName, nodeName, restoreFileName, database, restoreType) 
 
 
 main()
-
-
-
-
-
 
