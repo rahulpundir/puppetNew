@@ -13,26 +13,31 @@ def getS3Path(s3Directory):
 def downloadDumpFileFromS3(s3Directory, restoreFileName):
     S3Path = getS3Path(s3Directory)
     S3FileLocation = S3Path+ "/"+restoreFileName
-    downloadS3File = "aws s3 cp " +S3FileLocation+ " /tmp/" 
+    downloadS3File = "aws s3 cp " +S3FileLocation+ " /tmp/"
+    logging.debug("Downloading Mongo Backup From "+ S3FileLocation) 
     os.system(downloadS3File)
     
 
 def extractDumpFile(database, restoreFileName):
     compressedDumpFileLocation = "/tmp/" + restoreFileName
     sourceFile = tarfile.open(compressedDumpFileLocation)
+    logging.debug("Extracting Backup at " +os.getcwd())
     sourceFile.extractall()
     sourceFile.close()
 
 def restoreDumpInMongoDB(database):
     dumpRestoreCommand = "mongorestore " + database
+    logging.debug("Restoring Mongo Backup on Database " +database )
     os.system(dumpRestoreCommand)
 
 def dropDatabase(database):
     mongodatabaseInstanceConnection = MongoClient()
+    logging.debug("Droping Mongo Database " +database )
     mongodatabaseInstanceConnection.drop_database(database)
     
 def dropCollection(database, collection):
     mongodatabaseInstanceConnection = MongoClient()
+    logging.debug("Droping Mongo Collection "+collection+" From Database " +database )
     mongodatabaseInstanceConnection[database].drop_collection(collection)
     
     
@@ -91,6 +96,8 @@ def main():
     s3Directory = sys.argv[3]
     restoreType = sys.argv[4]
     databaseCleanupOption = sys.argv[5]
+    
+    logging.basicConfig(filename='/var/log/mongoRestore.log',level=logging.DEBUG)
     
     if validateDatabase(database):
         if restoreType == 'database':
