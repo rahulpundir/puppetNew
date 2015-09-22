@@ -5,17 +5,17 @@ from pymongo import MongoClient
 import logging
 import tarfile
 
-def createCompleteDatabaseBackup(database, backupTime):
-    databaseBackupLocation = "/opt/mongodump-"+backupTime
-    databaseBackupCommand = "mongodump --db "+database+" --out "+databaseBackupLocation
+def createCompleteDatabaseBackup(database, backupTime, getInternalIP):
+    databaseBackupLocation = "/tmp/mongodump-"+backupTime
+    databaseBackupCommand = "mongodump --host "+getInternalIP+" --db "+database+" --out "+databaseBackupLocation
     logging.debug("Creating Mongodb Complete Backup on "+ databaseBackupLocation)
     os.system(databaseBackupCommand)
     return databaseBackupLocation
   
-def createCollectionBackup(database, collectionName, backupTime):
+def createCollectionBackup(database, collectionName, backupTime, getInternalIP):
     databaseName = database
-    databaseBackupLocation = "/opt/mongodump-"+backupTime
-    commandToGetCollectionWiseBackup = "mongodump  --db "+databaseName+" --collection "+collectionName+" --out "+databaseBackupLocation
+    databaseBackupLocation = "/tmp/mongodump-"+backupTime
+    commandToGetCollectionWiseBackup = "mongodump --host "+getInternalIP+" --db "+databaseName+" --collection "+collectionName+" --out "+databaseBackupLocation
     logging.debug("Creating Mongodb Collection Backup ")
     os.system(commandToGetCollectionWiseBackup)
     return databaseBackupLocation
@@ -39,8 +39,8 @@ def uploadMongoBackupToS3(s3bucketName, nodeName, compressedFile, backupType):
     logging.debug(s3SyncCommand)
     os.system(s3SyncCommand)
 
-def validateDatabase(database):
-    client = MongoClient()
+def validateDatabase(database, getInternalIP):
+    client = MongoClient(getInternalIP)
     databases = client.database_names()
     if database in databases:
         return True
@@ -49,8 +49,8 @@ def validateDatabase(database):
         print "Please Provide a Valid Database Name"
         return False
 
-def validateDatabaseCollectionName(database, collectionName):
-    client = MongoClient()
+def validateDatabaseCollectionName(database, collectionName, getInternalIP):
+    client = MongoClient(getInternalIP)
     collectionNames = client[database].collection_names()
     if collectionName in collectionNames:
         return True
@@ -64,21 +64,24 @@ def main():
     database = sys.argv[1]
     s3bucketName = sys.argv[2]
     nodeName = sys.argv[3]
-    backupTime = datetime.datetime.strftime(datetime.datetime.now(), '%Y%m%d%H%M%S')
     backupType = sys.argv[4]
+    backupTime = datetime.datetime.strftime(datetime.datetime.now(), '%Y%m%d%H%M%S')
     
-    logging.basicConfig(filename='/var/log/mongoBackup.log',level=logging.DEBUG)
+    getInternalIPCommand = "ifconfig eth0 | grep 'inet addr' | awk -F: '{print $2}' | awk '{print $1}'"
+    getInternalIP = os.popen(getInternalIPCommand).read().strip()
     
-    if validateDatabase(database): 
+    logging.basicConfig(filename='/tmp/mongoBackup.log',level=logging.DEBUG)
+    
+    if validateDatabase(database, getInternalIP): 
         if backupType == 'database':
-            fileLocationForCompression = createCompleteDatabaseBackup(database, backupTime)
+            fileLocationForCompression = createCompleteDatabaseBackup(database, backupTime, getInternalIP)
             compressedFile = compressDatabaseBackup(database, backupTime, fileLocationForCompression)
             uploadMongoBackupToS3(s3bucketName, nodeName, compressedFile, backupType)
         else:
             if backupType == 'collection':
                 collectionName = sys.argv[5]
-                if validateDatabaseCollectionName(database, collectionName):
-                    fileLocationForCompression = createCollectionBackup(database, collectionName, backupTime)
+                if validateDatabaseCollectionName(database, collectionName, getInternalIP):
+                    fileLocationForCompression = createCollectionBackup(database, collectionName, backupTime, getInternalIP)
                     compressedFile = compressDatabaseBackup(database, backupTime, fileLocationForCompression)
                     uploadMongoBackupToS3(s3bucketName, nodeName, compressedFile, backupType)
             else:
