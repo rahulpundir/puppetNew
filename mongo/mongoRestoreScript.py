@@ -26,7 +26,7 @@ def extractDumpFile(database, restoreFileName):
     sourceFile.close()
 
 def restoreDumpInMongoDB(database, getInternalIP):
-    dumpRestoreCommand = "mongorestore --host " + getInternalIP + " " + database
+    dumpRestoreCommand = "mongorestore --host " + getInternalIP + " -d " + database+ " "+database
     logging.debug("Restoring Mongo Backup on Database " +database )
     os.system(dumpRestoreCommand)
 
@@ -35,8 +35,8 @@ def dropDatabase(database, getInternalIP):
     logging.debug("Droping Mongo Database " +database )
     mongodatabaseInstanceConnection.drop_database(database)
     
-def dropCollection(database, collection):
-    mongodatabaseInstanceConnection = MongoClient()
+def dropCollection(database, collection, getInternalIP):
+    mongodatabaseInstanceConnection = MongoClient(getInternalIP)
     logging.debug("Droping Mongo Collection "+collection+" From Database " +database )
     mongodatabaseInstanceConnection[database].drop_collection(collection)
     
@@ -101,14 +101,14 @@ def main():
     getInternalIPCommand = "ifconfig eth0 | grep 'inet addr' | awk -F: '{print $2}' | awk '{print $1}'"
     getInternalIP = os.popen(getInternalIPCommand).read().strip()
     
-    logging.basicConfig(filename='/var/log/mongoRestore.log',level=logging.DEBUG)
+    logging.basicConfig(filename='/tmp/mongoRestore.log',level=logging.DEBUG)
     
-    if validateDatabase(database, getInternalIP):
-        if restoreType == 'database':
-            restoreMongoDatabase(databaseCleanupOption, bucketName, nodeName, restoreFileName, database, restoreType, getInternalIP)
-        else:
-            if restoreType == 'collection':
-                collection = sys.argv[7]
+    if restoreType == 'database':
+        restoreMongoDatabase(databaseCleanupOption, bucketName, nodeName, restoreFileName, database, restoreType, getInternalIP)
+    else:
+        if restoreType == 'collection':
+            collection = sys.argv[7]
+            if validateDatabase(database, getInternalIP):
                 if validateDatabaseCollectionName(database, collection, getInternalIP):
                     restoreMongoCollection(collection, databaseCleanupOption, bucketName, nodeName, restoreFileName, database, restoreType, getInternalIP) 
 
